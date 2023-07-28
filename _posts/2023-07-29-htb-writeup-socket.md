@@ -583,5 +583,5 @@ root@socket:/home/tkeller# whoami
 root
 ```
 
-And we get the sell as root.    
+And we get the shell as root.    
 Cheers!
