@@ -14,6 +14,7 @@ tags:
   - couchdb
 ---
 
+
 ![](/assets/images/htb-writeup-canape/canape_logo.png)
 
 ### Summary
@@ -24,13 +25,11 @@ tags:
 - Enumeration of `couchdb` gives the password for user `homer`.
 - Bad sudo permissions make possible privilege escalation by using `pip`.
 
-### Detailed steps
+### Shell as www-data
 ------------------
 
 ### Nmap
 
-Port 80 exposes a Web service and port 65535 looks like ssh.    
-OpenSSH 7.2p2 is vulnerable to user enumeration.
 
 ```
 Nmap scan report for 10.10.10.70
@@ -41,6 +40,8 @@ PORT      STATE SERVICE VERSION
 65535/tcp open  ssh     OpenSSH 7.2p2 Ubuntu 4ubuntu2.4 (Ubuntu Linux; protocol 2.0)
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 ```
+
+Port 80 is an Apache Web service and port 65535 is the ssh service.
 
 ### Fuzzing Web service
 
@@ -301,7 +302,7 @@ loot/templates/layout.html
 ```
 
 We see that is a python application.    
-Before we continue, we should look at what the website first.    
+Before we continue, we should look at the website first.    
 
 ![](/assets/images/htb-writeup-canape/web.png)
 
@@ -400,7 +401,7 @@ Apparently it reads the content of the quote file and then it loads it into `cPi
 
 ### RCE Strategy
 
-The strategy I am going to follow here is to try writing a serialized payload into the quote file and then executing it with `/check`.    
+The strategy I am going to follow here is to write a serialized payload into the quote file and then executing it with `/check`.    
 One thing to take into account is that the quote is not saved as I send it, it is saved with the name of the character appended to it:
 
 ```python
@@ -422,7 +423,7 @@ So a serialized payload would look like this:
 exploit = "cos\nsystem\n(S'cat /etc/shadow | head -n 5'\ntR.'\ntR."
 ```
 
-Now that we have the payload, we need to know the quote id, which is the md5 hash of the `character + quote_id`.
+Now that we have the payload, we need to know the quote id, which is the md5 hash of the `character + quote`.
 
 ```python
 quote_id = md5(("moe"+quote).encode()).hexdigest()
@@ -495,7 +496,8 @@ We launch our exploit and obtain a reverse shell:
 
 ![](/assets/images/htb-writeup-canape/www-data.png)
 
-### www-data to homer
+### Shell as homer
+------------------
 
 When listing processes I see an interesting process being executed by `homer`:
 
@@ -570,6 +572,7 @@ Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2023-07-28 20:08:
 So we can ssh as user `homer` with password `0B4jyA0xtytZi7esBNGp`.
 
 ### Shell as root
+------------------
 
 A basic `sudo -l` shows that we can run pip install as root.
 
