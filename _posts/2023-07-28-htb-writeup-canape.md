@@ -44,7 +44,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 ### Fuzzing Web service
 
-Looks like the webpage uses some type of antifuzzing technology and sometimes responds with random lengths so you can't filter responses.    
+Looks like the webpage uses some type of antifuzzing technology and sometimes responds with random lengths so you can not filter responses.    
 Even adding super long delay time responds with random lengths.
 
 ```
@@ -129,7 +129,7 @@ Discovered: submit
 [4660/4661]
 ```
 
-We can see we discovered `.git/HEAD`    
+We can see we discovered `.git/HEAD`.    
 I will try to dump the `.git` directory with `git-dumper`.
 
 ```
@@ -279,7 +279,7 @@ I will try to dump the `.git` directory with `git-dumper`.
 Updated 10 paths from the index
 ```
 
-Now that we have this git project lets look at what it contains.
+Now that we have this git project let's look at what it contains.
 
 ```
 history ~ $ find loot/ | grep -v ".git"
@@ -306,7 +306,7 @@ Before we continue, we should look at what the website first.
 ![](/assets/images/htb-writeup-canape/web.png)
 
 It looks like a Simpsons themed webpage were we can submit quotes and view them.    
-Lets have a look at the source code of the web page.    
+Let's have a look at the source code of the web page.    
 
 ```python
 import couchdb
@@ -400,8 +400,8 @@ Apparently it reads the content of the quote file and then it loads it into `cPi
 
 ### RCE Strategy
 
-The strategy I am going to follow here is to try loading a serialized payload into the quote file and the loding it with `/check`.    
-One thing to take into account is that the quote isnt saved as I send it, it is saved with the name of the character appended to it:
+The strategy I am going to follow here is to try writing a serialized payload into the quote file and then executing it with `/check`.    
+One thing to take into account is that the quote is not saved as I send it, it is saved with the name of the character appended to it:
 
 ```python
 ...
@@ -415,20 +415,20 @@ One thing to take into account is that the quote isnt saved as I send it, it is 
 ...
 ```
 
-Searching a bit about absuing cPickle I found a [post](https://penturalabs.wordpress.com/2011/03/17/python-cpickle-allows-for-arbitrary-code-execution/) where it is using a preserialized payload so I don't have to.    
+Searching a bit about absuing `cPickle` I found a [post](https://penturalabs.wordpress.com/2011/03/17/python-cpickle-allows-for-arbitrary-code-execution/) where it is using a preserialized payload so I don't have to.    
 So a serialized payload would look like this:
 
 ```python
 exploit = "cos\nsystem\n(S'cat /etc/shadow | head -n 5'\ntR.'\ntR."
 ```
 
-Now that we have the payload, we need to know the quote id, which is the md5 hash of the `characted + quoteid`.
+Now that we have the payload, we need to know the quote id, which is the md5 hash of the `character + quote_id`.
 
 ```python
 quote_id = md5(("moe"+quote).encode()).hexdigest()
 ```
 
-Now, the serialize payload wont work because the character is appended to the quote, but if the character is in capital letters, cPickle will ignore it.    
+Now, the serialize payload will not work because the character is appended to the quote, but if the character is in capital letters, `cPickle` will ignore it.    
 Knowing this we will have to send the character with capital letters.
 
 ```python
@@ -497,7 +497,7 @@ We launch our exploit and obtain a reverse shell:
 
 ### www-data to homer
 
-When listing processes I see an interesting process being executed by homer:
+When listing processes I see an interesting process being executed by `homer`:
 
 ```
 homer       602  0.4  3.3 649340 33360 ?        Sl   09:44   0:19 /home/homer/bin/../erts-7.3/bin/beam -K true -A 16 -Bd -- -root /home/homer/bin/.. -progname couchdb -- -home /home/homer -- -boot /home/homer/bin/../releases/2.0.0/couchdb -name couchdb@localhost -setcookie monster -kernel error_logger silent -sasl sasl_error_logger false -noshell -noinput -config /home/homer/bin/../releases/2.0.0/sys.config
