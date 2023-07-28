@@ -75,7 +75,7 @@ We can also see it is running a python WebSocket service on port 5789.
 ![](/assets/images/htb-writeup-socket/web1.png)
 
 Nothing here so far, template injection when reading a QR Code does not work.    
-But if we see below we can download an app image for linux.
+But if we read below we can download an app image for linux.
 
 ![](/assets/images/htb-writeup-socket/web2.png)
 
@@ -331,7 +331,7 @@ ws.send("test")
 print(ws.recv())
 ```
 
-It does not respond with anything, but I can see in that qreader is sending some json data, so I will try to send an empty json object.
+It does not respond with anything, but I can see in the decompiled code that is sending some json data, so I will try to send an empty json object.
 
 ```python
 import websocket
@@ -468,7 +468,7 @@ history ~ $ python3 web.py '0" UNION SELECT 1,2,answer,4 FROM answers-- -'
 ```
 
 And we can see that a user called `Thomas Keller` is answering to a user called `Mike`.    
-Now we have 2 users that we can try login to ssh to with the password cracked before.    
+Now we have 2 users that we can try login to ssh with the password cracked before.    
 I will write in a file the potential users to try with `hydra`.
 
 ```
@@ -559,7 +559,7 @@ else
 fi
 ```
 
-It looks like a simple script that compiles `.py` files. but we notice that we can also specify a `.spec` file.    
+It looks like a simple script that compiles `.py` files, but we notice that we can also specify a `.spec` file.    
 If we go to the `pyinstaller` documentation we can read:
 
 ![](/assets/images/htb-writeup-socket/spec.png)
