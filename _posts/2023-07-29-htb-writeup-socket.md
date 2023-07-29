@@ -1,7 +1,7 @@
 ---
 layout: single
 title: Socket - Hack The Box
-date: 2023-07-28
+date: 2023-07-29
 classes: wide
 header:
   teaser: /assets/images/htb-writeup-socket/socket_logo.png
