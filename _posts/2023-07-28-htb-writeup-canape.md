@@ -12,6 +12,7 @@ tags:
   - linux
   - python
   - couchdb
+  - git
 ---
 
 
