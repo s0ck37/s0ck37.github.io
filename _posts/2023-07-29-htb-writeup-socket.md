@@ -11,7 +11,7 @@ tags:
   - hackthebox
   - linux
   - python
-  - sqlite
+  - sql
   - websockets
   - pyinstaller
 ---
